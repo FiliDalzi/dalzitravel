@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DalziTravel – Assistente AI di Viaggio</title>
+  <meta name="description" content="Il tuo assistente AI per viaggi: itinerari, consigli, domande su tutto ciò che riguarda il viaggio." />
+  <meta name="theme-color" content="#0ea5e9" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="DalziTravel" />
+  <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="/css/styles.css" />
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    html,body{height:100%;margin:0;overflow:hidden;font-family:'Inter',system-ui,sans-serif;}
+    #app{display:flex;height:100vh;background:#020617;}
+
+    /* Sidebar */
+    #sidebar{width:260px;flex-shrink:0;background:#0a1628;border-right:1px solid rgba(14,165,233,0.12);display:flex;flex-direction:column;transition:transform .25s ease;}
+    @media(max-width:768px){
+      #sidebar{position:absolute;z-index:40;height:100%;transform:translateX(-100%);}
+      #sidebar.open{transform:translateX(0);}
+    }
+
+    /* Main */
+    #main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;}
+
+    /* Messages */
+    #messages{flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:14px;}
+    #messages::-webkit-scrollbar{width:4px;}
+    #messages::-webkit-scrollbar-thumb{background:#1e3a5f;border-radius:2px;}
+
+    /* Bubbles */
+    .msg-user{align-self:flex-end;max-width:75%;}
+    .msg-user .bubble{background:linear-gradient(135deg,#0369a1,#0ea5e9);color:white;border-radius:18px 18px 4px 18px;padding:10px 14px;font-size:14px;line-height:1.5;word-break:break-word;}
+    .msg-ai{align-self:flex-start;max-width:88%;display:flex;gap:8px;align-items:flex-start;}
+    .msg-ai .av{width:28px;height:28px;border-radius:8px;flex-shrink:0;background:linear-gradient(135deg,#0ea5e9,#6366f1);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;}
+    .msg-ai .bubble{background:#0f172a;border:1px solid rgba(14,165,233,0.15);color:#e2e8f0;border-radius:4px 18px 18px 18px;padding:10px 14px;font-size:14px;line-height:1.6;word-break:break-word;}
+
+    /* Itinerary card */
+    .itin-card{background:#0a1628;border:1px solid rgba(14,165,233,0.2);border-radius:12px;overflow:hidden;margin-top:10px;}
+    .itin-hdr{padding:14px 16px;border-bottom:1px solid rgba(14,165,233,0.1);}
+    .itin-day{border-bottom:1px solid rgba(255,255,255,0.05);}
+    .itin-day:last-child{border-bottom:none;}
+    .day-toggle{width:100%;padding:10px 16px;display:flex;align-items:center;gap:10px;background:rgba(14,165,233,0.05);cursor:pointer;border:none;text-align:left;transition:background .15s;color:inherit;}
+    .day-toggle:hover{background:rgba(14,165,233,0.10);}
+    .day-chevron{margin-left:auto;flex-shrink:0;color:#475569;transition:transform .2s;}
+    .day-body{display:none;}
+    .day-body.open{display:block;}
+    .slot{padding:10px 16px;border-top:1px solid rgba(255,255,255,0.03);}
+    .slot-mattina{border-left:3px solid #fbbf24;}
+    .slot-pomeriggio{border-left:3px solid #22c55e;}
+    .slot-sera{border-left:3px solid #8b5cf6;}
+    .dist-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(14,165,233,0.1);border:1px solid rgba(14,165,233,0.2);border-radius:99px;padding:1px 8px;font-size:11px;color:#7dd3fc;margin-top:4px;}
+    .dist-badge.far{background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.3);color:#fca5a5;}
+
+    /* ── MAP ── */
+    .map-container{border-radius:10px;overflow:hidden;margin-top:10px;border:1px solid rgba(14,165,233,0.2);}
+    .map-header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#0a1628;border-bottom:1px solid rgba(14,165,233,0.1);}
+    .map-tabs{display:flex;gap:6px;}
+    .map-tab{font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid rgba(14,165,233,0.2);background:none;color:#64748b;cursor:pointer;transition:all .15s;}
+    .map-tab.active{background:rgba(14,165,233,0.15);color:#7dd3fc;border-color:rgba(14,165,233,0.4);}
+    .leaflet-map{height:280px;background:#0a1628;}
+    /* Override Leaflet dark theme */
+    .leaflet-tile{filter:brightness(.85) saturate(.7) hue-rotate(185deg);}
+    .leaflet-popup-content-wrapper{background:#0f172a;color:#e2e8f0;border:1px solid rgba(14,165,233,0.3);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.5);}
+    .leaflet-popup-tip{background:#0f172a;}
+    .leaflet-popup-content{margin:10px 14px;font-size:12px;line-height:1.5;}
+    .leaflet-popup-content strong{color:#38bdf8;display:block;margin-bottom:3px;}
+    .popup-slot-m{color:#fbbf24;}
+    .popup-slot-p{color:#22c55e;}
+    .popup-slot-s{color:#8b5cf6;}
+    .gmaps-btn{font-size:11px;color:#38bdf8;text-decoration:none;display:inline-flex;align-items:center;gap:3px;margin-top:6px;}
+    .gmaps-btn:hover{color:#7dd3fc;}
+    .map-legend{display:flex;gap:10px;flex-wrap:wrap;padding:6px 12px 8px;background:#0a1628;}
+    .legend-item{display:flex;align-items:center;gap:4px;font-size:10px;color:#64748b;}
+    .legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+    /* Input */
+    #inputArea{padding:12px 16px;border-top:1px solid rgba(14,165,233,0.1);background:#020617;flex-shrink:0;}
+    #inputWrap{display:flex;gap:8px;align-items:flex-end;background:#0f172a;border:1px solid rgba(14,165,233,0.2);border-radius:16px;padding:8px 8px 8px 14px;transition:border-color .2s;}
+    #inputWrap:focus-within{border-color:rgba(14,165,233,0.5);}
+    #msgInput{flex:1;background:none;border:none;outline:none;color:#e2e8f0;font-size:14px;font-family:inherit;resize:none;max-height:120px;line-height:1.5;min-height:22px;}
+    #msgInput::placeholder{color:#475569;}
+    #sendBtn{width:34px;height:34px;border-radius:10px;border:none;background:linear-gradient(135deg,#0ea5e9,#6366f1);color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .2s;}
+    #sendBtn:disabled{opacity:.4;cursor:not-allowed;}
+
+    /* Auth */
+    .auth-screen{position:fixed;inset:0;background:#020617;display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;overflow-y:auto;}
+    .auth-box{background:#0a1628;border:1px solid rgba(14,165,233,0.2);border-radius:20px;padding:28px;width:100%;max-width:380px;}
+    .pin-dots{display:flex;gap:10px;justify-content:center;margin:16px 0;}
+    .pin-dot{width:13px;height:13px;border-radius:50%;border:2px solid rgba(14,165,233,0.4);transition:all .15s;}
+    .pin-dot.filled{background:#0ea5e9;border-color:#0ea5e9;}
+    .pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;}
+    .pin-key{background:#0f172a;border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:13px;font-size:18px;font-weight:600;color:#e2e8f0;cursor:pointer;text-align:center;transition:background .15s;}
+    .pin-key:hover{background:#1e293b;}
+    .pin-key:active{background:rgba(14,165,233,0.2);}
+    .field-input{width:100%;background:#0f172a;border:1px solid rgba(14,165,233,0.2);border-radius:12px;padding:10px 14px;color:#e2e8f0;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;transition:border-color .2s;}
+    .field-input:focus{border-color:rgba(14,165,233,0.5);}
+    .field-label{font-size:11px;color:#64748b;margin-bottom:5px;display:block;letter-spacing:.04em;text-transform:uppercase;}
+
+    /* Sidebar items */
+    .chat-item{padding:9px 12px;border-radius:10px;cursor:pointer;transition:background .15s;display:flex;align-items:center;gap:8px;}
+    .chat-item:hover{background:rgba(14,165,233,0.08);}
+    .chat-item.active{background:rgba(14,165,233,0.15);}
+    .chat-item-title{flex:1;font-size:13px;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .chat-item.active .chat-item-title{color:#e2e8f0;font-weight:500;}
+    .chat-del{opacity:0;width:18px;height:18px;display:flex;align-items:center;justify-content:center;color:#64748b;transition:opacity .15s;flex-shrink:0;}
+    .chat-item:hover .chat-del{opacity:1;}
+
+    /* Typing */
+    .typing-dots span{display:inline-block;width:6px;height:6px;background:#38bdf8;border-radius:50%;margin:0 2px;animation:tdot 1.2s infinite;}
+    .typing-dots span:nth-child(2){animation-delay:.2s;}
+    .typing-dots span:nth-child(3){animation-delay:.4s;}
+    @keyframes tdot{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+
+    /* Overlay */
+    #sbOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:39;}
+    @media(max-width:768px){#sbOverlay.on{display:block;}}
+
+    /* Suggestions */
+    .sug-wrap{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;}
+    .sug{background:rgba(14,165,233,0.1);border:1px solid rgba(14,165,233,0.2);color:#7dd3fc;border-radius:99px;padding:5px 12px;font-size:12px;cursor:pointer;transition:background .15s;white-space:nowrap;}
+    .sug:hover{background:rgba(14,165,233,0.2);}
+
+    /* Settings */
+    #settingsPanel{position:fixed;inset:0;background:rgba(2,6,23,0.88);backdrop-filter:blur(6px);z-index:80;display:flex;align-items:center;justify-content:center;padding:16px;}
+    #settingsPanel.hidden{display:none;}
+    .settings-box{background:#0a1628;border:1px solid rgba(14,165,233,0.2);border-radius:20px;padding:28px;width:100%;max-width:400px;max-height:90vh;overflow-y:auto;}
+    .settings-section{margin-bottom:24px;}
+    .settings-section h3{font-size:11px;font-weight:600;color:#38bdf8;text-transform:uppercase;letter-spacing:.08em;margin:0 0 12px;}
+    .btn-sm{font-size:12px;font-weight:500;padding:6px 14px;border-radius:8px;border:none;cursor:pointer;transition:background .15s;}
+    .btn-primary{background:#0ea5e9;color:white;}
+    .btn-primary:hover{background:#0284c7;}
+    .btn-danger{background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.25);}
+    .btn-danger:hover{background:rgba(239,68,68,0.25);}
+    .btn-ghost{background:rgba(255,255,255,0.05);color:#94a3b8;}
+    .btn-ghost:hover{background:rgba(255,255,255,0.09);}
+    .stat-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+    .stat-box{background:rgba(14,165,233,0.07);border:1px solid rgba(14,165,233,0.12);border-radius:10px;padding:10px;text-align:center;}
+    .stat-n{font-size:22px;font-weight:700;color:#38bdf8;}
+    .stat-l{font-size:10px;color:#64748b;margin-top:2px;}
+    #newPinDots{display:none;}
+
+    /* Toast */
+    .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:8px 18px;border-radius:99px;font-size:13px;z-index:999;white-space:nowrap;pointer-events:none;}
+
+    /* Animazioni */
+    .fade-in{animation:fadeUp .3s ease-out;}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    /* Action bar itinerario */
+    .itin-actions{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px;}
+    .itin-btn{display:inline-flex;align-items:center;gap:4px;background:rgba(14,165,233,0.08);border:1px solid rgba(14,165,233,0.2);color:#7dd3fc;border-radius:8px;padding:4px 10px;font-size:11px;cursor:pointer;transition:background .15s;text-decoration:none;font-family:inherit;}
+    .itin-btn:hover{background:rgba(14,165,233,0.18);}
+    .itin-btn:disabled{opacity:.5;cursor:not-allowed;}
+    /* Weather bar */
+    .weather-bar{background:rgba(14,165,233,0.06);border-top:1px solid rgba(14,165,233,0.1);margin:8px -16px -14px;padding:10px 16px;}
+    .weather-days{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+    .weather-day{background:#0f172a;border:1px solid rgba(14,165,233,0.15);border-radius:8px;padding:6px 10px;text-align:center;min-width:60px;}
+    .weather-day .wd-date{font-size:10px;color:#64748b;}
+    .weather-day .wd-icon{font-size:18px;margin:2px 0;}
+    .weather-day .wd-temp{font-size:11px;color:#e2e8f0;font-weight:600;}
+    .weather-day .wd-rain{font-size:10px;color:#38bdf8;}
+    /* Share modal */
+    .share-modal{position:fixed;inset:0;background:rgba(2,6,23,0.85);backdrop-filter:blur(4px);z-index:90;display:flex;align-items:center;justify-content:center;padding:16px;}
+    .share-box{background:#0a1628;border:1px solid rgba(14,165,233,0.25);border-radius:16px;padding:24px;width:100%;max-width:420px;}
+  </style>
+</head>
+<body>
+
+<!-- ══ SETTINGS ═══════════════════════════════════════════════════════════════ -->
+<div id="settingsPanel" class="hidden">
+  <div class="settings-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h2 style="font-size:16px;font-weight:700;color:#f1f5f9;margin:0">⚙️ Impostazioni</h2>
+      <button id="closeSettingsBtn" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:22px;line-height:1;padding:0 4px">×</button>
+    </div>
+    <div class="settings-section">
+      <h3>Il tuo profilo</h3>
+      <div style="margin-bottom:12px">
+        <span class="field-label">Nome account</span>
+        <div style="font-size:16px;font-weight:600;color:#e2e8f0" id="sName">–</div>
+        <div style="font-size:11px;color:#475569;margin-top:2px" id="sJoined">–</div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="stat-n" id="statChats">–</div><div class="stat-l">Chat</div></div>
+        <div class="stat-box"><div class="stat-n" id="statMsgs">–</div><div class="stat-l">Messaggi</div></div>
+        <div class="stat-box"><div class="stat-n" id="statItin">–</div><div class="stat-l">Itinerari</div></div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h3>Cambia nome</h3>
+      <div style="display:flex;gap:8px">
+        <input id="newNameInput" class="field-input" placeholder="Nuovo nome (2-24 caratteri)" maxlength="24" />
+        <button id="saveNameBtn" class="btn-sm btn-primary">Salva</button>
+      </div>
+      <p id="nameErr" style="font-size:11px;color:#f87171;margin-top:6px;display:none"></p>
+    </div>
+    <div class="settings-section">
+      <h3>Cambia PIN</h3>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div>
+          <span class="field-label">PIN attuale</span>
+          <div class="pin-dots" id="oldPinDots" style="justify-content:flex-start;margin:6px 0 4px">
+            <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+          </div>
+        </div>
+        <div>
+          <span class="field-label">Nuovo PIN</span>
+          <div class="pin-dots" id="newPinDots" style="justify-content:flex-start;margin:6px 0 4px">
+            <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+          </div>
+        </div>
+        <div class="pin-pad" id="changePinPad"></div>
+      </div>
+      <p id="pinErr" style="font-size:11px;color:#f87171;margin-top:6px;display:none"></p>
+      <p id="pinOk"  style="font-size:11px;color:#86efac;margin-top:6px;display:none"></p>
+    </div>
+    <div class="settings-section">
+      <h3 style="color:#f87171">Zona pericolosa</h3>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0">
+        <span style="font-size:13px;color:#cbd5e1">Elimina account e tutti i dati</span>
+        <button id="deleteAccountBtn" class="btn-sm btn-danger">Elimina</button>
+      </div>
+    </div>
+    <button id="closeSettings2Btn" class="btn-sm btn-ghost" style="width:100%">Chiudi</button>
+  </div>
+</div>
+
+<!-- ══ AUTH ════════════════════════════════════════════════════════════════════ -->
+<div id="authScreen" class="auth-screen">
+  <div class="auth-box">
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#0ea5e9,#6366f1);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:white;margin:0 auto 10px">D</div>
+      <h1 style="font-size:20px;font-weight:800;color:white;margin:0">Dalzi<span style="background:linear-gradient(135deg,#38bdf8,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Travel</span></h1>
+      <p style="color:#64748b;font-size:13px;margin:4px 0 0">Il tuo assistente AI di viaggio</p>
+    </div>
+    <div style="display:flex;background:#0f172a;border-radius:12px;padding:4px;margin-bottom:20px">
+      <button id="tabReg" style="flex:1;padding:8px;font-size:13px;font-weight:500;border-radius:9px;border:none;background:#0ea5e9;color:white;cursor:pointer;transition:all .15s">Registrati</button>
+      <button id="tabLog" style="flex:1;padding:8px;font-size:13px;font-weight:500;border-radius:9px;border:none;background:none;color:#64748b;cursor:pointer;transition:all .15s">Accedi</button>
+    </div>
+    <div id="formReg">
+      <div style="margin-bottom:12px">
+        <label class="field-label">Scegli il tuo nome</label>
+        <input id="regName" class="field-input" placeholder="Es. MarcoEsploratore" maxlength="24" />
+        <p style="font-size:11px;color:#475569;margin-top:4px">Lettere e numeri, 2-24 caratteri</p>
+      </div>
+      <label class="field-label">Scegli un PIN (4-6 cifre)</label>
+      <div class="pin-dots" id="regDots">
+        <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+      </div>
+      <div class="pin-pad" id="regPad"></div>
+      <p id="regErr" style="font-size:11px;color:#f87171;text-align:center;margin-top:8px;display:none"></p>
+    </div>
+    <div id="formLog" style="display:none">
+      <div style="margin-bottom:12px">
+        <label class="field-label">Il tuo nome</label>
+        <input id="logName" class="field-input" placeholder="Es. MarcoEsploratore" />
+      </div>
+      <label class="field-label">PIN</label>
+      <div class="pin-dots" id="logDots">
+        <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+      </div>
+      <div class="pin-pad" id="logPad"></div>
+      <p id="logErr" style="font-size:11px;color:#f87171;text-align:center;margin-top:8px;display:none"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ APP ════════════════════════════════════════════════════════════════════ -->
+<div id="app" style="display:none">
+  <div id="sbOverlay"></div>
+  <div id="sidebar">
+    <div style="padding:14px 14px 10px;border-bottom:1px solid rgba(14,165,233,0.1)">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px">
+        <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#0ea5e9,#6366f1);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:white;flex-shrink:0">D</div>
+        <span style="font-size:13px;font-weight:700;color:white">Dalzi<span style="background:linear-gradient(135deg,#38bdf8,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Travel</span></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div id="avInit" style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#0369a1,#6366f1);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;flex-shrink:0">?</div>
+        <span id="sbName" style="font-size:12px;color:#94a3b8;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…</span>
+        <button id="openSettingsBtn" title="Impostazioni" style="background:none;border:none;color:#475569;cursor:pointer;padding:4px;display:flex;align-items:center;transition:color .15s">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        <button id="logoutBtn" title="Esci" style="background:none;border:none;color:#475569;cursor:pointer;padding:4px;display:flex;align-items:center;transition:color .15s">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        </button>
+      </div>
+    </div>
+    <div style="padding:10px">
+      <button id="newChatBtn" style="width:100%;display:flex;align-items:center;gap:8px;background:#0ea5e9;color:white;border:none;border-radius:10px;padding:9px 14px;font-size:13px;font-weight:500;cursor:pointer;transition:background .15s">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Nuova chat
+      </button>
+    </div>
+    <div id="chatList" style="flex:1;overflow-y:auto;padding:0 8px 12px"></div>
+  </div>
+
+  <div id="main">
+    <div style="display:flex;align-items:center;gap:10px;padding:0 14px;height:52px;border-bottom:1px solid rgba(14,165,233,0.1);flex-shrink:0">
+      <button id="sbToggle" style="display:none;background:none;border:none;color:#64748b;cursor:pointer;padding:4px">
+        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <h2 id="chatTitle" style="font-size:13px;font-weight:500;color:#94a3b8;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0">DalziTravel</h2>
+      <select id="langSelect" style="background:#0f172a;border:1px solid rgba(14,165,233,0.15);border-radius:8px;color:#64748b;font-size:11px;padding:3px 6px;cursor:pointer;outline:none">
+        <option value="it">&#127470;&#127481; IT</option>
+        <option value="en">&#127468;&#127463; EN</option>
+        <option value="fr">&#127467;&#127479; FR</option>
+        <option value="de">&#127465;&#127466; DE</option>
+        <option value="es">&#127466;&#127480; ES</option>
+      </select>
+      <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:#475569;background:#0f172a;border:1px solid rgba(14,165,233,0.1);border-radius:99px;padding:3px 10px;flex-shrink:0">
+        <span style="width:6px;height:6px;border-radius:50%;background:#22c55e;animation:tdot 2s infinite"></span><span id="daliActiveLabel">Dali attivo</span>
+      </span>
+    </div>
+    <div id="messages"></div>
+    <div id="inputArea">
+      <div id="inputWrap">
+        <textarea id="msgInput" rows="1" placeholder="Chiedi qualcosa sul tuo viaggio…" maxlength="1000"></textarea>
+        <button id="sendBtn" disabled>
+          <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+      </div>
+      <p style="font-size:11px;color:#334155;text-align:center;margin:6px 0 0">Dali può fare errori. Verifica le info importanti.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Leaflet JS — caricato in fondo per non bloccare il render -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════════════════════════════
+function esc(s){if(s==null)return"";return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+function fmtText(t){return esc(t).replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>").replace(/\*(.*?)\*/g,"<em>$1</em>").replace(/\n/g,"<br>");}
+function scrollBottom(){const m=document.getElementById("messages");setTimeout(()=>m.scrollTo({top:m.scrollHeight,behavior:"smooth"}),60);}
+function showToast(msg,err=false){document.querySelectorAll(".toast").forEach(t=>t.remove());const t=document.createElement("div");t.className="toast";t.style.cssText=`background:${err?"#991b1b":"#0369a1"};color:white`;t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3200);}
+function showErr(id,msg){const e=document.getElementById(id);if(!e)return;e.textContent=msg;e.style.display="block";setTimeout(()=>{if(e)e.style.display="none";},4500);}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════════════════════
+const S={user:null,token:null,chats:[],chat:null,sending:false,mapsKey:null};
+
+async function api(method,url,body){
+  const opts={method,headers:{"Content-Type":"application/json"}};
+  if(S.token)opts.headers["X-Auth"]=S.token;
+  if(body)opts.body=JSON.stringify(body);
+  const r=await fetch(url,opts);const j=await r.json();
+  if(!r.ok)throw new Error(j.error||"Errore server");
+  return j;
+}
+
+// Carica config (chiave Maps opzionale)
+async function loadConfig(){
+  try{const d=await fetch("/api/config").then(r=>r.json());S.mapsKey=d.mapsKey||null;}catch{}
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AUTH TABS
+// ══════════════════════════════════════════════════════════════════════════════
+function showTab(t){
+  document.getElementById("formReg").style.display=t==="reg"?"block":"none";
+  document.getElementById("formLog").style.display=t==="log"?"block":"none";
+  document.getElementById("tabReg").style.cssText+=`;background:${t==="reg"?"#0ea5e9":"transparent"};color:${t==="reg"?"white":"#64748b"}`;
+  document.getElementById("tabLog").style.cssText+=`;background:${t==="log"?"#0ea5e9":"transparent"};color:${t==="log"?"white":"#64748b"}`;
+}
+document.getElementById("tabReg").addEventListener("click",()=>showTab("reg"));
+document.getElementById("tabLog").addEventListener("click",()=>showTab("log"));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PIN PAD
+// ══════════════════════════════════════════════════════════════════════════════
+function buildPinPad(padId,dotsId,onDone,maxLen=6){
+  let pin="";
+  const pad=document.getElementById(padId);
+  const dotsEl=document.getElementById(dotsId);
+  function getDots(){return dotsEl.querySelectorAll(".pin-dot");}
+  function upDots(){getDots().forEach((d,i)=>d.classList.toggle("filled",i<pin.length));}
+  pad.innerHTML="";
+  ["1","2","3","4","5","6","7","8","9","","0","⌫"].forEach(k=>{
+    const b=document.createElement("button");b.className="pin-key";b.textContent=k;
+    if(!k)b.style.visibility="hidden";
+    b.addEventListener("click",()=>{
+      if(k==="⌫")pin=pin.slice(0,-1);
+      else if(k&&pin.length<maxLen)pin+=k;
+      upDots();if(pin.length>=4)onDone(pin);
+    });
+    pad.appendChild(b);
+  });
+  return{getPin:()=>pin,reset:()=>{pin="";upDots();}};
+}
+
+const regPad=buildPinPad("regPad","regDots",async(pin)=>{
+  const name=document.getElementById("regName").value.trim();
+  if(name.length<2){showErr("regErr","Il nome deve avere almeno 2 caratteri.");regPad.reset();return;}
+  try{const d=await api("POST","/api/auth/register",{pin,name});saveSession(d.user,d.token);initApp();showToast(`Benvenuto, ${d.user.name}! ✈️`);}
+  catch(e){showErr("regErr",e.message);regPad.reset();}
+});
+
+const logPad=buildPinPad("logPad","logDots",async(pin)=>{
+  const name=document.getElementById("logName").value.trim();
+  if(!name){showErr("logErr","Inserisci il tuo nome.");logPad.reset();return;}
+  try{const d=await api("POST","/api/auth/login",{name,pin});saveSession(d.user,d.token);initApp();}
+  catch(e){showErr("logErr",e.message);logPad.reset();}
+});
+document.getElementById("logName").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();document.getElementById("logPad").querySelector(".pin-key").focus();}});
+document.getElementById("regName").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();document.getElementById("regPad").querySelector(".pin-key").focus();}});
+document.getElementById("regName").addEventListener("input",function(){this.value=this.value.replace(/[^a-zA-ZÀ-ùà-ú0-9 ]/g,"");});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SESSION
+// ══════════════════════════════════════════════════════════════════════════════
+function saveSession(user,token){S.user=user;S.token=token;localStorage.setItem("dt_u",JSON.stringify(user));localStorage.setItem("dt_t",token);}
+function loadSession(){try{const u=localStorage.getItem("dt_u"),t=localStorage.getItem("dt_t");if(u&&t){S.user=JSON.parse(u);S.token=t;return true;}}catch{}return false;}
+function clearSession(){S.user=null;S.token=null;S.chats=[];S.chat=null;localStorage.removeItem("dt_u");localStorage.removeItem("dt_t");}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════════════════
+async function initApp(){
+  document.getElementById("authScreen").style.display="none";
+  document.getElementById("app").style.display="flex";
+  document.getElementById("sbName").textContent=S.user.name;
+  document.getElementById("avInit").textContent=S.user.name[0].toUpperCase();
+  if(window.innerWidth<=768)document.getElementById("sbToggle").style.display="block";
+  await loadConfig();
+  await loadChats();
+}
+async function loadChats(){
+  try{const d=await api("GET","/api/chats");S.chats=d.chats;renderChatList();if(S.chats.length>0)await openChat(S.chats[0].id);else showWelcome();}
+  catch(e){console.error("loadChats:",e);}
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SIDEBAR
+// ══════════════════════════════════════════════════════════════════════════════
+function renderChatList(){
+  const list=document.getElementById("chatList");
+  if(S.chats.length===0){list.innerHTML='<p style="font-size:12px;color:#334155;text-align:center;padding:16px">Nessuna chat ancora</p>';return;}
+  list.innerHTML="";
+  S.chats.forEach(c=>{
+    const el=document.createElement("div");
+    el.className="chat-item"+(S.chat?.id===c.id?" active":"");
+    el.innerHTML=`<svg width="13" height="13" fill="none" stroke="#475569" viewBox="0 0 24 24" style="flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+      <span class="chat-item-title">${esc(c.title)}</span>
+      <span class="chat-del" data-del="${esc(c.id)}"><svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></span>`;
+    el.addEventListener("click",ev=>{const del=ev.target.closest("[data-del]");if(del){deleteChat(del.dataset.del);return;}openChat(c.id);closeSidebar();});
+    list.appendChild(el);
+  });
+}
+async function openChat(id){
+  try{const d=await api("GET",`/api/chats/${id}`);S.chat=d.chat;document.getElementById("chatTitle").textContent=d.chat.title;renderMessages(d.chat.messages);renderChatList();}
+  catch(e){showToast("Errore apertura chat",true);}
+}
+async function deleteChat(id){
+  if(!confirm("Eliminare questa chat?"))return;
+  try{await api("DELETE",`/api/chats/${id}`);S.chats=S.chats.filter(c=>c.id!==id);if(S.chat?.id===id){S.chat=null;showWelcome();document.getElementById("chatTitle").textContent="DalziTravel";}renderChatList();}
+  catch(e){showToast("Errore eliminazione",true);}
+}
+document.getElementById("newChatBtn").addEventListener("click",async()=>{
+  try{const d=await api("POST","/api/chats",{title:"Nuova chat"});S.chat={...d.chat,messages:[]};S.chats.unshift({id:d.chat.id,title:d.chat.title,msgCount:0});document.getElementById("chatTitle").textContent=d.chat.title;renderChatList();showWelcome();closeSidebar();}
+  catch(e){showToast("Errore",true);}
+});
+document.getElementById("logoutBtn").addEventListener("click",()=>{clearSession();document.getElementById("app").style.display="none";document.getElementById("authScreen").style.display="flex";});
+document.getElementById("sbToggle").addEventListener("click",()=>{document.getElementById("sidebar").classList.toggle("open");document.getElementById("sbOverlay").classList.toggle("on");});
+document.getElementById("sbOverlay").addEventListener("click",closeSidebar);
+function closeSidebar(){document.getElementById("sidebar").classList.remove("open");document.getElementById("sbOverlay").classList.remove("on");}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// WELCOME
+// ══════════════════════════════════════════════════════════════════════════════
+function showWelcome(){
+  document.getElementById("messages").innerHTML=`
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 16px;min-height:60vh">
+      <div style="width:60px;height:60px;border-radius:16px;background:linear-gradient(135deg,#0ea5e9,#6366f1);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:white;margin-bottom:16px;box-shadow:0 8px 32px rgba(14,165,233,0.3)">D</div>
+      <h2 style="font-size:20px;font-weight:700;color:white;margin:0 0 8px">Ciao, sono Dali! ✈️</h2>
+      <p style="color:#64748b;font-size:14px;max-width:340px;line-height:1.6;margin:0 0 24px">Sono il tuo assistente di viaggio AI. Chiedimi qualsiasi cosa: itinerari, crociere, visti, clima, cosa mettere in valigia…</p>
+      <div class="sug-wrap" style="max-width:480px">
+        <button class="sug">3 giorni a Lisbona budget medio</button>
+        <button class="sug">Crociera: cabina interna o esterna?</button>
+        <button class="sug">Quando andare in Giappone?</button>
+        <button class="sug">7 giorni Islanda avventura</button>
+        <button class="sug">Cosa mettere in valigia per i tropici?</button>
+        <button class="sug">Fiordi norvegesi 10 giorni</button>
+      </div>
+    </div>`;
+  bindSugs();
+}
+function bindSugs(){document.querySelectorAll(".sug").forEach(b=>{b.addEventListener("click",()=>{document.getElementById("msgInput").value=b.textContent;document.getElementById("msgInput").dispatchEvent(new Event("input"));sendMsg();});});}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// RENDER MESSAGES
+// ══════════════════════════════════════════════════════════════════════════════
+function renderMessages(msgs){const c=document.getElementById("messages");c.innerHTML="";if(!msgs||msgs.length===0){showWelcome();return;}msgs.forEach(m=>appendMsg(m,false));scrollBottom();}
+
+function appendMsg(msg,animate=true){
+  const c=document.getElementById("messages");
+  const wl=c.querySelector("div[style*='min-height:60vh']");if(wl)wl.remove();
+  const w=document.createElement("div");
+  if(animate)w.classList.add("fade-in");
+  if(msg.role==="user"){
+    w.classList.add("msg-user");
+    w.innerHTML=`<div class="bubble">${esc(msg.content)}</div>`;
+  }else{
+    w.classList.add("msg-ai");
+    if(msg.tipo==="itinerario"&&msg.data){
+      w.innerHTML=`<div class="av">D</div><div style="flex:1;min-width:0"><div class="bubble" style="border-radius:4px 18px 4px 18px;margin-bottom:8px"><p style="margin:0">${esc(msg.content)}</p></div>${buildItinCard(msg.data)}</div>`;
+      w.querySelectorAll(".day-toggle").forEach(btn=>btn.addEventListener("click",()=>toggleDay(btn)));
+      // Inizializza mappe dopo che il DOM è nel documento
+      setTimeout(()=>initMaps(w,msg.data),100);
+    }else{
+      w.innerHTML=`<div class="av">D</div><div class="bubble">${fmtText(msg.content)}</div>`;
+    }
+  }
+  c.appendChild(w);
+  if(animate)scrollBottom();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ACCORDION
+// ══════════════════════════════════════════════════════════════════════════════
+function toggleDay(btn){
+  const body=btn.nextElementSibling;
+  const chevron=btn.querySelector(".day-chevron");
+  const willOpen=!body.classList.contains("open");
+  body.classList.toggle("open",willOpen);
+  if(chevron)chevron.style.transform=willOpen?"rotate(180deg)":"rotate(0deg)";
+  // Invalidate Leaflet map size when accordion opens (fix: mappa grigia)
+  if(willOpen){
+    const mapEl=body.querySelector(".leaflet-map");
+    if(mapEl&&mapEl._leafletMap)setTimeout(()=>mapEl._leafletMap.invalidateSize(),50);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BUILD ITINERARY CARD (HTML)
+// ══════════════════════════════════════════════════════════════════════════════
+function buildItinCard(d){
+  const bStr=(d.budget_stimato?.minimo&&d.budget_stimato?.massimo)?`€${d.budget_stimato.minimo}–€${d.budget_stimato.massimo}`:"N/D";
+
+  const giorni=(d.itinerario||[]).map((g,gi)=>{
+    const slots=(g.attivita||[]).map(a=>{
+      const sc=a.slot_orario?.toLowerCase().includes("mattina")?"slot-mattina":a.slot_orario?.toLowerCase().includes("pomeriggio")?"slot-pomeriggio":"slot-sera";
+      const ic=a.slot_orario?.toLowerCase().includes("mattina")?"🌅":a.slot_orario?.toLowerCase().includes("pomeriggio")?"☀️":"🌙";
+      const km=Number(a.km_dal_precedente)||0,mn=Number(a.minuti_dal_precedente)||0,far=km>20;
+      const dist=km>0?`<span class="dist-badge${far?" far":""}">🗺 ${km} km · ${mn} min${far?" ⚠️":""}</span>`:"";
+      const mapL=a.coordinate_geografiche?.lat&&a.coordinate_geografiche?.lng?`<a href="https://maps.google.com/?q=${Number(a.coordinate_geografiche.lat)},${Number(a.coordinate_geografiche.lng)}" target="_blank" rel="noopener" style="color:#38bdf8;font-size:11px;text-decoration:none">📍 Mappa</a>`:"";
+      const srcL=a.link_fonte_web?.startsWith("http")?`<a href="${esc(a.link_fonte_web)}" target="_blank" rel="noopener" style="color:#7dd3fc;font-size:11px;text-decoration:none">🔗 Fonte</a>`:"";
+      const costoVal=a.costo_stimato?.valore??0;
+      return `<div class="slot ${sc}">
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px"><span>${ic}</span><span style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.05em">${esc(a.slot_orario||"")}</span></div>
+        <div style="font-size:13px;font-weight:600;color:#e2e8f0;margin-bottom:3px">${esc(a.titolo_attivita||"")}</div>
+        <div style="font-size:12px;color:#94a3b8;margin-bottom:4px">${esc(a.descrizione||"")}</div>
+        ${dist}
+        <div style="display:flex;gap:10px;margin-top:5px;flex-wrap:wrap;align-items:center">
+          ${a.costo_stimato?`<span style="font-size:11px;color:#86efac">€${costoVal} · ${esc(a.costo_stimato.tipo||"")}</span>`:""}
+          ${a.durata_consigliata?`<span style="font-size:11px;color:#475569">⏱ ${esc(a.durata_consigliata)}</span>`:""}
+          ${mapL}${srcL}
+        </div>
+        ${a.suggerimento_insider?`<div style="margin-top:6px;background:rgba(14,165,233,0.07);border-radius:6px;padding:5px 8px;font-size:11px;color:#7dd3fc">💎 ${esc(a.suggerimento_insider)}</div>`:""}
+      </div>`;
+    }).join("");
+
+    const isFirst=gi===0;
+    const mapId=`map-${gi}-${Date.now()}`;
+    return `<div class="itin-day">
+      <button class="day-toggle" aria-expanded="${isFirst}">
+        <div style="width:24px;height:24px;background:linear-gradient(135deg,#0369a1,#6366f1);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;flex-shrink:0">${g.giorno||gi+1}</div>
+        <div style="flex:1;min-width:0;text-align:left">
+          <div style="font-size:12px;font-weight:600;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.titolo_giornata||"")}</div>
+          ${g.area_geografica?`<div style="font-size:10px;color:#475569">📍 ${esc(g.area_geografica)}</div>`:""}
+        </div>
+        <svg class="day-chevron" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transform:${isFirst?"rotate(180deg)":"rotate(0deg)"}"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <div class="day-body${isFirst?" open":""}">
+        ${slots}
+        <div class="map-container" data-day="${gi}" data-mapid="${mapId}">
+          <div class="map-header">
+            <span style="font-size:11px;color:#64748b;font-weight:500">🗺 Mappa del giorno</span>
+            <div class="map-tabs">
+              <button class="map-tab active" data-view="route">Percorso</button>
+              <button class="map-tab" data-view="all">Tutto l'itinerario</button>
+            </div>
+          </div>
+          <div class="leaflet-map" id="${mapId}"></div>
+          <div class="map-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#fbbf24"></div>Mattina</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>Pomeriggio</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div>Sera</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+
+  const consigli=(d.consigli_dalzitravel||[]).map(c=>`<div style="font-size:11px;color:#7dd3fc">→ ${esc(c)}</div>`).join("");
+  const destEnc=encodeURIComponent(d.destinazione||"");
+  const wbId="wb-"+Math.random().toString(36).slice(2,8);
+  return `<div class="itin-card" data-itin-json='${JSON.stringify(d).replace(/'/g,"&#39;")}'>
+    <div class="itin-hdr">
+      <div style="font-size:10px;color:#38bdf8;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px">Itinerario DalziTravel</div>
+      <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:5px">${esc(d.nome_viaggio||"")}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:6px">
+        <span style="font-size:12px;color:#94a3b8">📍 ${esc(d.destinazione||"")} · ${d.durata_giorni||"?"} giorni</span>
+        <span style="font-size:12px;color:#86efac">💶 ${bStr}</span>
+        <span style="font-size:11px;background:rgba(14,165,233,.1);border:1px solid rgba(14,165,233,.25);border-radius:99px;padding:1px 8px;color:#7dd3fc">${esc(d.budget_categoria||"")}</span>
+      </div>
+      <div class="itin-actions">
+        <button class="itin-btn" data-action="pdf">📄 PDF</button>
+        <button class="itin-btn" data-action="share">🔗 Condividi</button>
+        <button class="itin-btn" data-action="weather">☁️ Meteo</button>
+        <a class="itin-btn" href="https://www.booking.com/searchresults.it.html?ss=${destEnc}" target="_blank" rel="noopener">🏨 Hotel</a>
+        <a class="itin-btn" href="https://www.getyourguide.it/s/?q=${destEnc}" target="_blank" rel="noopener">🎟 Attività</a>
+      </div>
+      <div class="weather-bar" id="${wbId}" style="display:none"></div>
+      ${consigli?`<div style="margin-top:8px;display:flex;flex-direction:column;gap:2px">${consigli}</div>`:""}
+    </div>
+    ${giorni}
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LEAFLET MAPS
+// ══════════════════════════════════════════════════════════════════════════════
+const SLOT_COLORS={mattina:"#fbbf24",pomeriggio:"#22c55e",sera:"#8b5cf6"};
+const SLOT_ICONS={mattina:"🌅",pomeriggio:"☀️",sera:"🌙"};
+
+function makeMarkerIcon(color,label){
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">
+    <path d="M16 0C7.163 0 0 7.163 0 16c0 12 16 26 16 26S32 28 32 16C32 7.163 24.837 0 16 0z" fill="${color}" stroke="white" stroke-width="2"/>
+    <text x="16" y="20" text-anchor="middle" dominant-baseline="middle" font-size="13" fill="white">${label}</text>
+  </svg>`;
+  return L.divIcon({
+    html:svg, className:"",
+    iconSize:[32,42], iconAnchor:[16,42], popupAnchor:[0,-44]
+  });
+}
+
+// Mappa indice globale per evitare re-init
+const _mapInstances={};
+
+function initMaps(container,data){
+  if(typeof L==="undefined")return; // Leaflet non caricato
+
+  const allPOI=[];// tutti i POI con coord valide
+  (data.itinerario||[]).forEach((g,gi)=>{
+    (g.attivita||[]).forEach((a,ai)=>{
+      const lat=Number(a.coordinate_geografiche?.lat);
+      const lng=Number(a.coordinate_geografiche?.lng);
+      if(!lat||!lng||isNaN(lat)||isNaN(lng))return;
+      allPOI.push({lat,lng,gi,ai,titolo:a.titolo_attivita,slot:a.slot_orario,descrizione:a.descrizione,costo:a.costo_stimato,giorno:g.giorno||gi+1,titolo_giornata:g.titolo_giornata});
+    });
+  });
+
+  if(allPOI.length===0)return;// nessun POI con coord
+
+  // Init mappa per ogni giorno
+  container.querySelectorAll(".map-container").forEach(mc=>{
+    const gi=parseInt(mc.dataset.day);
+    const mapId=mc.dataset.mapid;
+    const mapEl=document.getElementById(mapId);
+    if(!mapEl||_mapInstances[mapId])return;
+
+    const dayPOI=allPOI.filter(p=>p.gi===gi);
+    if(dayPOI.length===0){mc.style.display="none";return;}
+
+    const map=L.map(mapEl,{zoomControl:true,scrollWheelZoom:false,attributionControl:true});
+    _mapInstances[mapId]=map;
+    mapEl._leafletMap=map;
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+      attribution:'© <a href="https://openstreetmap.org">OSM</a>',
+      maxZoom:18
+    }).addTo(map);
+
+    // Stato vista (percorso giorno / tutto itinerario)
+    let currentView="route";
+    let routeLine=null;
+    const allMarkers=[];
+
+    function renderRoute(pois,isAll){
+      // Rimuovi layer precedenti
+      allMarkers.forEach(m=>map.removeLayer(m));
+      allMarkers.length=0;
+      if(routeLine){map.removeLayer(routeLine);routeLine=null;}
+
+      // Aggiungi marker
+      pois.forEach((p,i)=>{
+        const slot=(p.slot||"").toLowerCase();
+        const color=SLOT_COLORS[Object.keys(SLOT_COLORS).find(k=>slot.includes(k))||"mattina"];
+        const icon_label=SLOT_ICONS[Object.keys(SLOT_ICONS).find(k=>slot.includes(k))||"mattina"];
+        const slotClass=slot.includes("mattina")?"popup-slot-m":slot.includes("pomeriggio")?"popup-slot-p":"popup-slot-s";
+        const gMapUrl=`https://maps.google.com/?q=${p.lat},${p.lng}`;
+        const costTxt=p.costo?`<span style="color:#86efac">€${p.costo.valore??0} · ${esc(p.costo.tipo||"")}</span>`:"";
+        const popup=`<div>
+          <strong class="${slotClass}">${icon_label} ${isAll?`Giorno ${p.giorno} · `:""} ${esc(p.titolo||"")}</strong>
+          <div style="color:#94a3b8;margin-bottom:4px">${esc(p.descrizione||"")}</div>
+          ${costTxt}
+          <a class="gmaps-btn" href="${gMapUrl}" target="_blank" rel="noopener">
+            <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+            Apri in Google Maps
+          </a>
+        </div>`;
+        const marker=L.marker([p.lat,p.lng],{icon:makeMarkerIcon(color,isAll?String(p.giorno):String(i+1))})
+          .addTo(map).bindPopup(popup);
+        allMarkers.push(marker);
+      });
+
+      // Linea di percorso tratteggiata
+      if(pois.length>1){
+        routeLine=L.polyline(pois.map(p=>[p.lat,p.lng]),{
+          color:"#0ea5e9",weight:2,opacity:.6,dashArray:"6 4"
+        }).addTo(map);
+      }
+
+      // Fit bounds
+      const coords=pois.map(p=>[p.lat,p.lng]);
+      if(coords.length===1)map.setView(coords[0],14);
+      else map.fitBounds(L.latLngBounds(coords),{padding:[28,28]});
+    }
+
+    // Vista iniziale: percorso del giorno
+    renderRoute(dayPOI,false);
+
+    // Tab switch
+    mc.querySelectorAll(".map-tab").forEach(tab=>{
+      tab.addEventListener("click",()=>{
+        mc.querySelectorAll(".map-tab").forEach(t=>t.classList.remove("active"));
+        tab.classList.add("active");
+        currentView=tab.dataset.view;
+        if(currentView==="route")renderRoute(dayPOI,false);
+        else renderRoute(allPOI,true);
+        map.invalidateSize();
+      });
+    });
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SEND MESSAGE
+// ══════════════════════════════════════════════════════════════════════════════
+const msgInput=document.getElementById("msgInput");
+const sendBtn=document.getElementById("sendBtn");
+msgInput.addEventListener("input",()=>{msgInput.style.height="auto";msgInput.style.height=Math.min(msgInput.scrollHeight,120)+"px";sendBtn.disabled=!msgInput.value.trim()||S.sending;});
+msgInput.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMsg();}});
+sendBtn.addEventListener("click",sendMsg);
+
+async function sendMsg(){
+  const text=msgInput.value.trim();if(!text||S.sending)return;
+  if(!S.chat){
+    try{const d=await api("POST","/api/chats",{title:text.slice(0,40)});S.chat={...d.chat,messages:[]};S.chats.unshift({id:d.chat.id,title:d.chat.title,msgCount:0});renderChatList();}
+    catch(e){showToast("Errore creazione chat",true);return;}
+  }
+  appendMsg({id:"tmp",role:"user",content:text,timestamp:new Date().toISOString()});
+  msgInput.value="";msgInput.style.height="auto";sendBtn.disabled=true;S.sending=true;
+  const ti=document.createElement("div");ti.className="msg-ai fade-in";ti.id="typing";
+  ti.innerHTML=`<div class="av">D</div><div class="bubble" style="padding:12px 14px"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
+  document.getElementById("messages").appendChild(ti);scrollBottom();
+  try{
+    const d=await api("POST",`/api/chats/${S.chat.id}/message`,{messaggio:text});
+    ti.remove();appendMsg(d.message);
+    if(d.chatTitle&&d.chatTitle!==S.chat.title){S.chat.title=d.chatTitle;document.getElementById("chatTitle").textContent=d.chatTitle;const ci=S.chats.find(c=>c.id===S.chat.id);if(ci)ci.title=d.chatTitle;renderChatList();}
+  }catch(e){ti.remove();appendMsg({id:"err",role:"assistant",tipo:"testo",content:`⚠️ ${e.message}`,timestamp:new Date().toISOString()});}
+  finally{S.sending=false;sendBtn.disabled=!msgInput.value.trim();msgInput.focus();}
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MULTI-LINGUA (i18n)
+// ══════════════════════════════════════════════════════════════════════════════
+const I18N = {
+  it:{ placeholder:"Chiedi qualcosa sul tuo viaggio…", newChat:"Nuova chat", daliActive:"Dali attivo",
+       sug:["3 giorni a Lisbona budget medio","Crociera: cabina interna o esterna?","Quando andare in Giappone?",
+            "7 giorni Islanda avventura","Cosa mettere in valigia per i tropici?","Fiordi norvegesi 10 giorni"],
+       disclaimer:"Dali può fare errori. Verifica le info importanti."},
+  en:{ placeholder:"Ask anything about your trip…", newChat:"New chat", daliActive:"Dali active",
+       sug:["3 days in Lisbon mid budget","Cruise: inside or outside cabin?","When to visit Japan?",
+            "7 days Iceland adventure","What to pack for the tropics?","Norwegian Fjords 10 days"],
+       disclaimer:"Dali can make mistakes. Verify important info."},
+  fr:{ placeholder:"Posez une question sur votre voyage…", newChat:"Nouvelle discussion", daliActive:"Dali actif",
+       sug:["3 jours à Lisbonne budget moyen","Croisière: cabine intérieure ou extérieure?","Quand aller au Japon?",
+            "7 jours Islande aventure","Que mettre dans la valise pour les tropiques?","Fjords norvégiens 10 jours"],
+       disclaimer:"Dali peut faire des erreurs. Vérifiez les infos importantes."},
+  de:{ placeholder:"Frag mich alles über deine Reise…", newChat:"Neuer Chat", daliActive:"Dali aktiv",
+       sug:["3 Tage Lissabon mittleres Budget","Kreuzfahrt: Innen- oder Außenkabine?","Wann nach Japan reisen?",
+            "7 Tage Island Abenteuer","Was einpacken für die Tropen?","Norwegische Fjorde 10 Tage"],
+       disclaimer:"Dali kann Fehler machen. Überprüfe wichtige Infos."},
+  es:{ placeholder:"Pregunta lo que quieras sobre tu viaje…", newChat:"Nuevo chat", daliActive:"Dali activo",
+       sug:["3 días en Lisboa presupuesto medio","Crucero: ¿cabina interior o exterior?","¿Cuándo ir a Japón?",
+            "7 días Islandia aventura","¿Qué meter en la maleta para el trópico?","Fiordos noruegos 10 días"],
+       disclaimer:"Dali puede cometer errores. Verifica la información importante."},
+};
+
+let currentLang = localStorage.getItem("dt_lang") || "it";
+
+function applyLang(lang){
+  currentLang = lang;
+  localStorage.setItem("dt_lang", lang);
+  const t = I18N[lang] || I18N.it;
+  document.getElementById("msgInput").placeholder = t.placeholder;
+  const nc = document.getElementById("newChatBtn");
+  if(nc) nc.childNodes[nc.childNodes.length-1].textContent = " " + t.newChat;
+  const dal = document.getElementById("daliActiveLabel");
+  if(dal) dal.textContent = t.daliActive;
+  const disc = document.querySelector("#inputArea p");
+  if(disc) disc.textContent = t.disclaimer;
+}
+
+document.getElementById("langSelect").value = currentLang;
+document.getElementById("langSelect").addEventListener("change", function(){ applyLang(this.value); });
+applyLang(currentLang);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AZIONI ITINERARIO — delegate da .itin-card [data-action]
+// ══════════════════════════════════════════════════════════════════════════════
+document.getElementById("messages").addEventListener("click", async function(e){
+  const btn = e.target.closest("[data-action]");
+  if(!btn) return;
+  const action = btn.dataset.action;
+  const card = btn.closest(".itin-card");
+  if(!card) return;
+
+  // Leggi dati itinerario dall'attributo
+  let itin;
+  try{ itin = JSON.parse(card.dataset.itinJson || "null"); }catch{ return; }
+  if(!itin) return;
+
+  if(action === "pdf") await doDownloadPDF(btn, itin);
+  if(action === "share") await doShare(btn, itin);
+  if(action === "weather") await doWeather(btn, itin, card);
+});
+
+async function doDownloadPDF(btn, itin){
+  btn.disabled = true;
+  btn.textContent = "⏳ PDF…";
+  try{
+    const r = await fetch("/api/itinerario/pdf", {
+      method:"POST",
+      headers:{"Content-Type":"application/json","X-Auth":S.token},
+      body: JSON.stringify({ itinerario: itin })
+    });
+    if(!r.ok) throw new Error("Errore server");
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url;
+    a.download = `dalzitravel-${(itin.destinazione||"itinerario").replace(/\s+/g,"-").toLowerCase()}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("PDF scaricato ✓");
+  }catch(err){ showToast("Errore PDF: "+err.message, true); }
+  finally{ btn.disabled=false; btn.innerHTML="📄 PDF"; }
+}
+
+async function doShare(btn, itin){
+  btn.disabled = true;
+  btn.textContent = "⏳…";
+  try{
+    const d = await api("POST", "/api/share", { itinerario: itin });
+    const fullUrl = window.location.origin + d.url;
+    // Prova clipboard API
+    try{
+      await navigator.clipboard.writeText(fullUrl);
+      showToast("Link copiato! Valido 30 giorni ✓");
+    }catch{
+      // Fallback: mostra modal con link
+      showShareModal(fullUrl);
+    }
+  }catch(err){ showToast("Errore condivisione: "+err.message, true); }
+  finally{ btn.disabled=false; btn.innerHTML="🔗 Condividi"; }
+}
+
+function showShareModal(url){
+  const m = document.createElement("div");
+  m.className = "share-modal";
+  m.innerHTML = `<div class="share-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 style="color:#e2e8f0;font-size:15px;margin:0">🔗 Link di condivisione</h3>
+      <button onclick="this.closest('.share-modal').remove()" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:20px">×</button>
+    </div>
+    <p style="font-size:12px;color:#64748b;margin:0 0 10px">Valido 30 giorni. Chiunque abbia il link può visualizzare l'itinerario.</p>
+    <div style="display:flex;gap:6px">
+      <input id="shareUrlInput" value="${url}" readonly style="flex:1;background:#0f172a;border:1px solid rgba(14,165,233,0.2);border-radius:8px;padding:8px 10px;color:#e2e8f0;font-size:12px;outline:none"/>
+      <button onclick="navigator.clipboard.writeText(document.getElementById('shareUrlInput').value).then(()=>showToast('Copiato ✓'))" style="background:#0ea5e9;color:white;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:12px">Copia</button>
+    </div>
+  </div>`;
+  m.addEventListener("click", function(e){ if(e.target===this) this.remove(); });
+  document.body.appendChild(m);
+}
+
+async function doWeather(btn, itin, card){
+  const wbId = card.querySelector(".weather-bar")?.id;
+  const wb   = wbId ? document.getElementById(wbId) : null;
+  if(!wb) return;
+
+  // Toggle
+  if(wb.style.display !== "none" && wb.style.display !== ""){
+    wb.style.display = "none";
+    btn.innerHTML = "☁️ Meteo";
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "⏳…";
+  wb.style.display = "block";
+  wb.innerHTML = `<div style="font-size:11px;color:#64748b">Caricamento meteo per ${esc(itin.destinazione||"")}…</div>`;
+
+  try{
+    const days = Math.min(itin.durata_giorni || 5, 5);
+    const r = await api("GET", `/api/weather?dest=${encodeURIComponent(itin.destinazione||"")}&days=${days}`);
+    if(!r.success){
+      wb.innerHTML = `<div style="font-size:11px;color:#f87171">⚠️ ${r.message || "Meteo non disponibile. Aggiungi OPENWEATHER_API_KEY nel .env"}</div>`;
+      return;
+    }
+    const iconeMap = {
+      "01":"☀️","02":"⛅","03":"🌥","04":"☁️","09":"🌧","10":"🌦","11":"⛈","13":"❄️","50":"🌫"
+    };
+    const daysHtml = r.previsioni.map(p=>{
+      const icon = iconeMap[p.icona?.slice(0,2)] || "🌡";
+      const date = new Date(p.date+"T12:00:00").toLocaleDateString("it-IT",{weekday:"short",day:"numeric",month:"short"});
+      return `<div class="weather-day">
+        <div class="wd-date">${date}</div>
+        <div class="wd-icon">${icon}</div>
+        <div class="wd-temp">${p.temp_min}° / ${p.temp_max}°</div>
+        <div class="wd-rain">💧 ${p.pioggia}%</div>
+      </div>`;
+    }).join("");
+    wb.innerHTML = `
+      <div style="font-size:11px;font-weight:600;color:#38bdf8;margin-bottom:6px">☁️ Meteo — ${esc(r.citta)} (prossimi ${r.previsioni.length} giorni)</div>
+      <div class="weather-days">${daysHtml}</div>
+      <p style="font-size:10px;color:#334155;margin:6px 0 0">Dati OpenWeatherMap. Previsioni indicative oltre i 3 giorni.</p>`;
+  }catch(err){
+    wb.innerHTML = `<div style="font-size:11px;color:#f87171">Errore meteo: ${err.message}</div>`;
+  }finally{
+    btn.disabled=false;
+    btn.innerHTML="☁️ Meteo";
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PAGINA PUBBLICA CONDIVISIONE — /share/:id
+// ══════════════════════════════════════════════════════════════════════════════
+async function checkSharedPage(){
+  const m = window.location.pathname.match(/^\/share\/([a-f0-9]+)$/);
+  if(!m) return;
+  // Questa è una pagina di condivisione pubblica
+  document.getElementById("authScreen").style.display="none";
+  document.getElementById("app").style.display="none";
+  document.body.style.background="#020617";
+  const container = document.createElement("div");
+  container.style.cssText="max-width:800px;margin:0 auto;padding:20px 16px;";
+  container.innerHTML=`<div style="text-align:center;padding:60px 16px;color:#64748b">Caricamento itinerario condiviso…</div>`;
+  document.body.appendChild(container);
+  try{
+    const r = await fetch(`/api/share/${m[1]}`).then(r=>r.json());
+    if(!r.success) throw new Error(r.error);
+    const itin = r.itinerario;
+    container.innerHTML = `
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:22px;font-weight:800;color:white">Dalzi<span style="background:linear-gradient(135deg,#38bdf8,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Travel</span></div>
+        <p style="font-size:12px;color:#475569;margin:4px 0 0">Itinerario condiviso · ${new Date(r.createdAt).toLocaleDateString("it-IT")}</p>
+      </div>
+      ${buildItinCard(itin)}
+      <p style="font-size:11px;color:#334155;text-align:center;margin-top:16px">
+        Vuoi creare il tuo itinerario personalizzato? <a href="/" style="color:#38bdf8">Prova DalziTravel gratis →</a>
+      </p>`;
+    // Init mappe
+    setTimeout(()=>{
+      const w = {querySelector:s=>container.querySelector(s), querySelectorAll:s=>container.querySelectorAll(s)};
+      container.querySelectorAll(".day-toggle").forEach(btn=>btn.addEventListener("click",()=>toggleDay(btn)));
+      setTimeout(()=>initMaps(container,itin),200);
+    },100);
+  }catch(e){
+    container.innerHTML=`<div style="text-align:center;padding:60px 16px;color:#f87171">⚠️ ${e.message}</div>`;
+  }
+}
+
+// Controlla se siamo su pagina condivisa PRIMA del boot normale
+if(window.location.pathname.startsWith("/share/")){
+  checkSharedPage();
+} else {
+// ══════════════════════════════════════════════════════════════════════════════
+// SETTINGS
+// ══════════════════════════════════════════════════════════════════════════════
+let pinPhase="old",oldPinVal="";
+function resetPinFlow(){
+  pinPhase="old";oldPinVal="";
+  document.getElementById("oldPinDots").style.display="flex";
+  document.getElementById("newPinDots").style.display="none";
+  buildPinPad("changePinPad","oldPinDots",onOldPinDone);
+}
+function onOldPinDone(pin){if(pinPhase!=="old")return;oldPinVal=pin;pinPhase="new";document.getElementById("oldPinDots").style.display="none";document.getElementById("newPinDots").style.display="flex";buildPinPad("changePinPad","newPinDots",onNewPinDone);}
+async function onNewPinDone(newPin){
+  if(pinPhase!=="new")return;
+  try{const d=await api("PATCH","/api/settings/pin",{oldPin:oldPinVal,newPin});S.token=d.token;localStorage.setItem("dt_t",d.token);document.getElementById("pinOk").textContent="✓ PIN aggiornato!";document.getElementById("pinOk").style.display="block";setTimeout(()=>{document.getElementById("pinOk").style.display="none";},3000);resetPinFlow();}
+  catch(e){showErr("pinErr",e.message);resetPinFlow();}
+}
+async function openSettings(){
+  document.getElementById("settingsPanel").classList.remove("hidden");
+  document.getElementById("sName").textContent=S.user.name;
+  resetPinFlow();
+  try{const d=await api("GET","/api/settings/stats");document.getElementById("sJoined").textContent="Membro dal "+new Date(d.joinedAt).toLocaleDateString("it-IT");document.getElementById("statChats").textContent=d.chatCount;document.getElementById("statMsgs").textContent=d.msgCount;document.getElementById("statItin").textContent=d.itinCount;}catch{}
+}
+function closeSettings(){document.getElementById("settingsPanel").classList.add("hidden");}
+
+document.getElementById("openSettingsBtn").addEventListener("click",openSettings);
+document.getElementById("closeSettingsBtn").addEventListener("click",closeSettings);
+document.getElementById("closeSettings2Btn").addEventListener("click",closeSettings);
+document.getElementById("settingsPanel").addEventListener("click",function(e){if(e.target===this)closeSettings();});
+document.getElementById("saveNameBtn").addEventListener("click",async()=>{
+  const n=document.getElementById("newNameInput").value.trim();
+  if(n.length<2){showErr("nameErr","Min 2 caratteri.");return;}
+  try{const d=await api("PATCH","/api/settings/name",{name:n});S.user.name=d.name;localStorage.setItem("dt_u",JSON.stringify(S.user));document.getElementById("sbName").textContent=d.name;document.getElementById("avInit").textContent=d.name[0].toUpperCase();document.getElementById("sName").textContent=d.name;document.getElementById("newNameInput").value="";showToast("Nome aggiornato ✓");}
+  catch(e){showErr("nameErr",e.message);}
+});
+document.getElementById("newNameInput").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();document.getElementById("saveNameBtn").click();}});
+document.getElementById("deleteAccountBtn").addEventListener("click",async()=>{
+  if(!confirm("⚠️ Eliminare account e TUTTE le chat?"))return;
+  try{await api("DELETE","/api/settings/account");clearSession();closeSettings();document.getElementById("app").style.display="none";document.getElementById("authScreen").style.display="flex";showToast("Account eliminato.");}
+  catch(e){showToast(e.message,true);}
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PWA + BOOT
+// ══════════════════════════════════════════════════════════════════════════════
+if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch(()=>{});
+window.addEventListener("resize",()=>{document.getElementById("sbToggle").style.display=window.innerWidth<=768?"block":"none";});
+if(window.innerWidth<=768)document.getElementById("sbToggle").style.display="block";
+if(loadSession())initApp();
+else document.getElementById("authScreen").style.display="flex";
+} // chiude else di checkSharedPage
+</script>
+</body>
+</html>
